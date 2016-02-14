@@ -126,8 +126,7 @@ WISHLIST_REQUEST = endpoints.ResourceContainer(
 
 FEATURED_SPEAKER_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
-    websafeConferenceKey=messages.StringField(1),
-    speaker_name = messages.StringField(2)
+    websafeConferenceKey=messages.StringField(1)
 )
 
 GET_POPULAR_CONF_REQUEST = endpoints.ResourceContainer(
@@ -188,9 +187,9 @@ class ConferenceApi(remote.Service):
                 data[df] = DEFAULTS[df]
                 setattr(request, df, DEFAULTS[df])
 
-        if data['maxAttendees'] > 0:
-            data['ratioAvailable'] = float(data['seatsAvailable'])/float(data['maxAttendees'])
-            request.ratioAvailable = data['ratioAvailable']
+        # if data['maxAttendees'] > 0:
+        #     data['ratioAvailable'] = float(data['seatsAvailable'])/float(data['maxAttendees'])
+        #     request.ratioAvailable = data['ratioAvailable']
 
         # convert dates from strings to Date objects; set month based on start_date
         if data['startDate']:
@@ -483,7 +482,8 @@ class ConferenceApi(remote.Service):
                 ', '.join(conf.name for conf in confs))
             memcache.set(MEMCACHE_ANNOUNCEMENTS_KEY, announcement)
         else:
-            # If there are no sold out conferences,
+            # If there are no sold out con
+            ferences,
             # delete the memcache announcements entry
             announcement = ""
             memcache.delete(MEMCACHE_ANNOUNCEMENTS_KEY)
@@ -503,27 +503,25 @@ class ConferenceApi(remote.Service):
     def _cacheFeaturedSpeaker(websafeConferenceKey, speaker_name):
         """Create a string containing featured speaker / session names & assign to memcache;
         """
-
         #use websafeConferenceKey + speaker_name as key
-        MEMCACHE_FEATURED_SPEAKER_KEY = websafeConferenceKey + speaker_name
+        MEMCACHE_FEATURED_SPEAKER_KEY = websafeConferenceKey
 
         ss = Session.query(ancestor=ndb.Key(urlsafe=websafeConferenceKey))
         ss = ss.filter(Session.speaker == speaker_name)
-        if ss:
-            message ="Sessions: "
+
+        if ss and ss.count() > 1:
+            message ="Featuring: "+ speaker_name + " Sessions: "
             for s in ss:
                 message += s.name + ", "
             memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY, message)
-        else:
-            memcache.delete(MEMCACHE_FEATURED_SPEAKER_KEY)
-        return message
+
 
     @endpoints.method(FEATURED_SPEAKER_REQUEST, StringMessage,
-            path='conference/{websafeConferenceKey}/featured/{speaker_name}',
+            path='conference/{websafeConferenceKey}/featured',
             http_method='GET', name='getFeaturedSpeaker')
     def getFeaturedSpeaker(self, request):
         """Return featured speaker from memcache."""
-        KEY = request.websafeConferenceKey + request.speaker_name
+        KEY = request.websafeConferenceKey
         return StringMessage(data=memcache.get(KEY) or "")
 
 
@@ -572,7 +570,7 @@ class ConferenceApi(remote.Service):
             else:
                 retval = False
 
-        conf.ratioAvailable = float(conf.seatsAvailable)/float(conf.maxAttendees)
+        # conf.ratioAvailable = float(conf.seatsAvailable)/float(conf.maxAttendees)
 
         # write things back to the datastore & return
         prof.put()
@@ -668,10 +666,12 @@ class ConferenceApi(remote.Service):
         #copy data into a dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
         del data['websafeConferenceKey']
-        # del data['websafeSessionKey']
+        del data['websafeSessionKey']
 
         if not data['typeOfSession']:
             data['typeOfSession'] = str(SessionType.NOT_SPECIFIED)
+        else: 
+            data['typeOfSession']= str(data['typeOfSession'])
 
         for df in SESSION_DEFAULTS:
             if data[df] in (None, []):
@@ -684,23 +684,39 @@ class ConferenceApi(remote.Service):
         else:
             data['date'] = datetime.now()
 
+        if data['startTime']:
+            data['startTime'] = datetime.strptime(data['startTime'], '%I:%M%p').time()
+        else:
+            data['startTime'] = datetime.strptime('12:00AM', '%I:%M%p').time()
+            
         # generate session Key/ID based on conference key
         c_key = ndb.Key(urlsafe=request.websafeConferenceKey)
         s_id = Session.allocate_ids(size=1, parent=c_key)[0]
         s_key = ndb.Key(Session, s_id, parent=c_key)
         data['key'] = s_key
-        data['conferenceName'] = c_key.get().name
-        data['websafeSessionKey'] = s_key.urlsafe()
-
+        # data['conferenceName'] = c_key.get().name
+        # data['websafeSessionKey'] = s_key.urlsafe()
+        # del data['websafeSessionKey']
         # print s_key.urlsafe()
         #create session
         Session(**data).put()
 
-        request.websafeSessionKey = data['websafeSessionKey']
-        if data['speaker'] != 'To Be Announced':
-            self._cacheFeaturedSpeaker(request.websafeConferenceKey,data['speaker'])
+        # data['websafeSessionKey'] = s_key.urlsafe();
+        # print data['websafeSessionKey']
+        # print 'adding to queue!!!'
+
+
+        taskqueue.add(params={'websafeConferenceKey': c_key.urlsafe(),
+            'speaker_name': data['speaker']},
+            url='/tasks/set_featured_speaker'
+        )
+
+        # if data['speaker'] != 'To Be Announced':
+        #     self._cacheFeaturedSpeaker(request.websafeConferenceKey,data['speaker'])
         # return self._copySessionToForm(data)
-        return request
+
+        print s_key.get();
+        return self._copySessionToForm(s_key.get())
 
     @endpoints.method(SESSION_GET_REQUEST, SessionForms,
             path='conference/{websafeConferenceKey}/session',
@@ -725,8 +741,8 @@ class ConferenceApi(remote.Service):
         if request.sessionType not in SessionType.to_dict():
             raise endpoints.BadRequestException('Invalid session type')
         # create ancestor query for all key matches for this conference
-        ss = Session.query(ancestor=ndb.Key(urlsafe=request.websafeConferenceKey))
-        ss.filter(Session.typeOfSession==str(request.sessionType))
+        ss = Session.query(ancestor=ndb.Key(urlsafe=request.websafeConferenceKey)).filter(
+            Session.typeOfSession==str(request.sessionType))
 
         # return set of SessionForm objects per session
         return SessionForms(
@@ -740,7 +756,7 @@ class ConferenceApi(remote.Service):
         """Return sessions for conference with requested type"""
         
         # get all sessions
-        ss = Session.query().filter(Session.speaker==str(request.speaker)) #filter by speaker
+        ss = Session.query().filter(Session.speaker==request.speaker) #filter by speaker
 
         # return set of SessionForm objects per session
         return SessionForms(
@@ -752,20 +768,28 @@ class ConferenceApi(remote.Service):
         sf = SessionForm()
 
         for field in sf.all_fields():
+            print field.name
+            # print field.name, 
+            # print field.name == 'websafeSessionKey',
+            # print hasattr(sess, 'websafeSessionKey')
             if hasattr(sess, field.name):
-                # convert Date to date string; just copy others
-                if field.name == 'date':
+                # convert Dates to date string;
+                if field.name == 'date' or field.name == 'startTime':
                     setattr(sf, field.name, str(getattr(sess, field.name)))
                 # convert t-shirt string to Enum;
                 elif field.name == 'typeOfSession':
                     setattr(sf, field.name, getattr(SessionType, getattr(sess, field.name)))
-                # elif field.name == "websafeSessionKey":
-                #     setattr(sf, field.name, sess.key.urlsafe())
+                # elif field.name == 'websafeSessionKey':# Make sure that Session does *NOT* contain a `websafeSessionKey` field or this branch will never be reached
+                #     sf.websafeSessionKey = sess.key.urlsafe()
                 else:
                     setattr(sf, field.name, getattr(sess, field.name))
+            elif field.name == 'websafeSessionKey':
+                    # print 'testing'
+                    # print 'trying to set session key'
+                setattr(sf, field.name, sess.key.urlsafe())
+        # setattr(sf, 'websafeSessionKey', sess['websafeSessionKey'])
         sf.check_initialized()
         return sf
-
 # - - - Wishlist - - - - - - - - - - - - - - - - - - - -
     @endpoints.method(WISHLIST_REQUEST, ProfileForm,
             path='wishlist',
@@ -776,9 +800,9 @@ class ConferenceApi(remote.Service):
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
-        user_id = getUserId(user)
-        p_key = ndb.Key(Profile, user_id)
-        profile = p_key.get()
+        # user_id = getUserId(user)
+        # p_key = ndb.Key(Profile, user_id)
+        profile = self._getProfileFromUser()
         if request.sessionKey not in profile.SessionKeysInWishList:
             profile.SessionKeysInWishList.append(request.sessionKey)
         else:
@@ -824,7 +848,7 @@ class ConferenceApi(remote.Service):
         p_key = ndb.Key(Profile, user_id)
         profile = p_key.get()
 
-        session = ndb.Key(Session, request.sessionKey)
+        session = ndb.Key(urlsafe=request.sessionKey).get()
         if not session:
             raise endpoints.NotFoundException(
                 'No session found with key: %s' %request.sessionKey)
@@ -845,8 +869,7 @@ class ConferenceApi(remote.Service):
         if request.num < 1:
             raise endpoints.BadRequestException('Please choose a number > 0.')
 
-        confs = Conference.query()
-        confs.order(Conference.ratioAvailable) #ascending, less available = more popular
+        confs = Conference.query().order(Conference.ratioAvailable) #ascending, less available = more popular
 
         confs = confs.fetch(request.num)
         # return set of ConferenceForm objects per Conference

@@ -62,11 +62,11 @@ class Conference(ndb.Model):
     topics          = ndb.StringProperty(repeated=True)
     city            = ndb.StringProperty()
     startDate       = ndb.DateProperty()
-    month           = ndb.IntegerProperty() # TODO: do we need for indexing like Java?
+    month           = ndb.IntegerProperty() 
     endDate         = ndb.DateProperty()
     maxAttendees    = ndb.IntegerProperty()
     seatsAvailable  = ndb.IntegerProperty()
-    ratioAvailable  = ndb.FloatProperty()
+    ratioAvailable  = ndb.ComputedProperty(lambda self: float(self.seatsAvailable)/float(self.maxAttendees))
 
 class ConferenceForm(messages.Message):
     """ConferenceForm -- Conference outbound form message"""
@@ -80,7 +80,7 @@ class ConferenceForm(messages.Message):
     maxAttendees    = messages.IntegerField(8, variant=messages.Variant.INT32)
     seatsAvailable  = messages.IntegerField(9, variant=messages.Variant.INT32)
     endDate         = messages.StringField(10) #DateTimeField()
-    ratioAvailable  = messages.FloatField(11)
+    # ratioAvailable  = messages.FloatField(11)
     websafeKey      = messages.StringField(12)
     organizerDisplayName = messages.StringField(13)
 
@@ -97,9 +97,9 @@ class Session(ndb.Model):
     typeOfSession   = ndb.StringProperty(default='NOT_SPECIFIED')
     date            = ndb.DateProperty()
     startTime       = ndb.TimeProperty()
-    conferenceName  = ndb.StringProperty()
     location        = ndb.StringProperty()
-    websafeSessionKey = ndb.StringProperty()
+    # conferenceName  = ndb.StringProperty()
+    # websafeSessionKey = ndb.StringProperty()
     # conference_name   = ndb.StringProperty()
 
 class SessionForm(messages.Message):
@@ -111,7 +111,7 @@ class SessionForm(messages.Message):
     date            = messages.StringField(6)
     startTime       = messages.StringField(7)
     location        = messages.StringField(8)
-    conferenceName   = messages.StringField(9)
+    # conferenceName   = messages.StringField(9)
     websafeConferenceKey = messages.StringField(10)
     websafeSessionKey = messages.StringField(11)
 
