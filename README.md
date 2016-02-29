@@ -1,13 +1,22 @@
 App URL: https://udacityconferenceapp-1184.appspot.com
 
 Local Setup:
-1) Install Google App Engine & Clone the project folder
-2) File > New Application > browse to cloned directory > Create
-3) Click Run to deploy and go to localhost:8080
-4) http://localhost:8080/_ah/api to access api (if using chrome click 
-		the shield and click load unsafe scripts)
-		Alternative: Run through terminal with  
-		OSX: /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --user-data-dir=test --unsafely-treat-insecure-origin-as-secure=http://localhost:8080
+<ol>
+	<li>Install Google App Engine & Clone the project folder</li>
+	<li>File > New Application > browse to cloned directory > Create</li>
+	<li>Click Run to deploy and go to localhost:8080</li>
+	<li>Running the app -> http://localhost:8080
+		<ol>
+			<li>
+				Accessing API: http://localhost:8080/_ah/api(if using chrome click the shield and click load unsafe scripts)
+			</li>
+			<li>
+				Alternative Access: Run through terminal with OSX:
+			</li>
+			<code>/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --user-data-dir=test --unsafely-treat-insecure-origin-as-secure=http://localhost:8080</code>
+		</ol>
+	</li>
+</ol>
 
 
 #Task 1:
