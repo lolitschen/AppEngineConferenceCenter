@@ -66,7 +66,7 @@ class Conference(ndb.Model):
     endDate         = ndb.DateProperty()
     maxAttendees    = ndb.IntegerProperty()
     seatsAvailable  = ndb.IntegerProperty()
-    ratioAvailable  = ndb.ComputedProperty(lambda self: float(self.seatsAvailable)/float(self.maxAttendees))
+    ratioAvailable  = ndb.ComputedProperty(lambda self: (float(self.seatsAvailable)/float(self.maxAttendees)) if self.maxAttendees != 0 else 0)
 
 class ConferenceForm(messages.Message):
     """ConferenceForm -- Conference outbound form message"""

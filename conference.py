@@ -482,8 +482,7 @@ class ConferenceApi(remote.Service):
                 ', '.join(conf.name for conf in confs))
             memcache.set(MEMCACHE_ANNOUNCEMENTS_KEY, announcement)
         else:
-            # If there are no sold out con
-            ferences,
+            # If there are no sold out conferences,
             # delete the memcache announcements entry
             announcement = ""
             memcache.delete(MEMCACHE_ANNOUNCEMENTS_KEY)
@@ -657,9 +656,6 @@ class ConferenceApi(remote.Service):
         if conf.organizerUserId != user_id:
             raise endpoints.UnauthorizedException('Incorrect Authorization')
 
-
-        #if not user_id == request.organizerUserId:
-        #    raise endpoints.UnauthorizedException('Incorrect Authorization')
         if not request.name:
             raise endpoints.BadRequestException("Session 'name' field required")
 
@@ -694,26 +690,14 @@ class ConferenceApi(remote.Service):
         s_id = Session.allocate_ids(size=1, parent=c_key)[0]
         s_key = ndb.Key(Session, s_id, parent=c_key)
         data['key'] = s_key
-        # data['conferenceName'] = c_key.get().name
-        # data['websafeSessionKey'] = s_key.urlsafe()
-        # del data['websafeSessionKey']
-        # print s_key.urlsafe()
+
         #create session
         Session(**data).put()
-
-        # data['websafeSessionKey'] = s_key.urlsafe();
-        # print data['websafeSessionKey']
-        # print 'adding to queue!!!'
-
 
         taskqueue.add(params={'websafeConferenceKey': c_key.urlsafe(),
             'speaker_name': data['speaker']},
             url='/tasks/set_featured_speaker'
         )
-
-        # if data['speaker'] != 'To Be Announced':
-        #     self._cacheFeaturedSpeaker(request.websafeConferenceKey,data['speaker'])
-        # return self._copySessionToForm(data)
 
         print s_key.get();
         return self._copySessionToForm(s_key.get())
@@ -769,9 +753,6 @@ class ConferenceApi(remote.Service):
 
         for field in sf.all_fields():
             print field.name
-            # print field.name, 
-            # print field.name == 'websafeSessionKey',
-            # print hasattr(sess, 'websafeSessionKey')
             if hasattr(sess, field.name):
                 # convert Dates to date string;
                 if field.name == 'date' or field.name == 'startTime':
@@ -779,17 +760,14 @@ class ConferenceApi(remote.Service):
                 # convert t-shirt string to Enum;
                 elif field.name == 'typeOfSession':
                     setattr(sf, field.name, getattr(SessionType, getattr(sess, field.name)))
-                # elif field.name == 'websafeSessionKey':# Make sure that Session does *NOT* contain a `websafeSessionKey` field or this branch will never be reached
-                #     sf.websafeSessionKey = sess.key.urlsafe()
                 else:
                     setattr(sf, field.name, getattr(sess, field.name))
             elif field.name == 'websafeSessionKey':
-                    # print 'testing'
-                    # print 'trying to set session key'
+
                 setattr(sf, field.name, sess.key.urlsafe())
-        # setattr(sf, 'websafeSessionKey', sess['websafeSessionKey'])
         sf.check_initialized()
         return sf
+
 # - - - Wishlist - - - - - - - - - - - - - - - - - - - -
     @endpoints.method(WISHLIST_REQUEST, ProfileForm,
             path='wishlist',
@@ -800,8 +778,7 @@ class ConferenceApi(remote.Service):
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
-        # user_id = getUserId(user)
-        # p_key = ndb.Key(Profile, user_id)
+
         profile = self._getProfileFromUser()
         if request.sessionKey not in profile.SessionKeysInWishList:
             profile.SessionKeysInWishList.append(request.sessionKey)
@@ -823,15 +800,11 @@ class ConferenceApi(remote.Service):
         p_key = ndb.Key(Profile, user_id)
         profile = p_key.get()
 
-        # sessions = Session.query(ancestor=p_key)
-
 
         session_keys = [(ndb.Key(urlsafe= s_key)) for s_key in profile.SessionKeysInWishList]
         for s_key in profile.SessionKeysInWishList:
             print ndb.Key(Session,s_key).get()
         sessions = ndb.get_multi(session_keys)
-        print sessions
-        # print ndb.Key(Session, profile.SessionKeysInWishList[0]).get()
         return SessionForms(
             sessions=[self._copySessionToForm(s) for s in sessions]
         )
